@@ -26,25 +26,83 @@
     line-height: 1.7;
     text-shadow: 0 0 6px rgba(143, 211, 255, .45);
     pointer-events: none;
+    white-space: pre;
+  }
+  #panel {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 20px;
+    background: rgba(30, 30, 44, .88);
+    border: 1px solid rgba(143, 211, 255, .22);
+    border-radius: 10px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, .5);
+    color: #cfd8e3;
+    font-size: 13px;
+  }
+  #panel label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  #panel input[type="range"] {
+    width: 140px;
+    accent-color: #4f9dd6;
+    cursor: pointer;
+  }
+  #panel .val {
+    color: #8fd3ff;
+    text-shadow: 0 0 6px rgba(143, 211, 255, .4);
+  }
+  #resetBtn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid rgba(143, 211, 255, .5);
+    border-radius: 6px;
+    color: #8fd3ff;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background .15s, box-shadow .15s;
+  }
+  #resetBtn:hover {
+    background: rgba(79, 157, 214, .18);
+    box-shadow: 0 0 10px rgba(120, 200, 255, .35);
   }
 </style>
 </head>
 <body>
 <div id="hud"></div>
 <canvas id="stage"></canvas>
+<div id="panel">
+  <label>摆长 <span class="val" id="lenVal">200 px</span>
+    <input type="range" id="lenSlider" min="100" max="350" step="1" value="200">
+  </label>
+  <label>重力 <span class="val" id="gVal">9.8 m/s²</span>
+    <input type="range" id="gSlider" min="1" max="25" step="0.1" value="9.8">
+  </label>
+  <label>阻尼 <span class="val" id="dampVal">0.000</span>
+    <input type="range" id="dampSlider" min="0" max="0.01" step="0.0005" value="0">
+  </label>
+  <button id="resetBtn" type="button">重置摆动</button>
+</div>
 <script>
 (function () {
   "use strict";
 
-  // ---------- 参数 ----------
+  // ---------- 参数（滑块可实时调节） ----------
   var PIXELS_PER_METER = 100;      // 像素-物理量换算
   var L_PX = 200;                  // 摆长（像素）
   var G = 9.8;                     // 重力加速度 m/s^2
   var THETA0 = 45 * Math.PI / 180; // 初始摆角（弧度）
-  var DAMPING = 0.0;               // 无阻尼，理想简谐/非线性摆动
+  var DAMPING = 0;                 // 阻尼系数 0~0.01，内部放大 100 倍使衰减在数十秒内可见
   var BOB_RADIUS = 16;
 
-  var L_M = L_PX / PIXELS_PER_METER;
+  function lM() { return L_PX / PIXELS_PER_METER; }
 
   // ---------- 状态 ----------
   var theta = THETA0;
@@ -69,7 +127,7 @@
 
   // ---------- 物理积分（RK4，非线性单摆方程 θ'' = -(g/L)sinθ） ----------
   function accel(th) {
-    return -(G / L_M) * Math.sin(th) - DAMPING * omega;
+    return -(G / lM()) * Math.sin(th) - (DAMPING * 100) * omega;
   }
 
   function step(dt) {
@@ -147,10 +205,10 @@
 
     // HUD 数据
     var deg = (theta * 180 / Math.PI).toFixed(1);
-    var period = 2 * Math.PI * Math.sqrt(L_M / G); // 小周期近似
+    var period = 2 * Math.PI * Math.sqrt(lM() / G); // 小周期近似
     hud.textContent =
       "单摆模拟器 Week 05\n" +
-      "L = 200 px (2.0 m)   g = 9.8 m/s²\n" +
+      "L = " + L_PX + " px (" + lM().toFixed(1) + " m)   g = " + G.toFixed(1) + " m/s²   阻尼 = " + DAMPING.toFixed(3) + "\n" +
       "θ = " + deg + "°   ω = " + omega.toFixed(2) + " rad/s\n" +
       "T₀ ≈ " + period.toFixed(2) + " s   t = " + clock.toFixed(1) + " s";
   }
@@ -169,6 +227,35 @@
     draw();
     requestAnimationFrame(loop);
   }
+
+  // ---------- 交互控制面板 ----------
+  var lenSlider = document.getElementById("lenSlider");
+  var gSlider = document.getElementById("gSlider");
+  var dampSlider = document.getElementById("dampSlider");
+  var lenVal = document.getElementById("lenVal");
+  var gVal = document.getElementById("gVal");
+  var dampVal = document.getElementById("dampVal");
+
+  lenSlider.addEventListener("input", function () {
+    L_PX = Number(lenSlider.value);
+    lenVal.textContent = L_PX + " px";
+    trail.length = 0;
+  });
+  gSlider.addEventListener("input", function () {
+    G = Number(gSlider.value);
+    gVal.textContent = G.toFixed(1) + " m/s²";
+  });
+  dampSlider.addEventListener("input", function () {
+    DAMPING = Number(dampSlider.value);
+    dampVal.textContent = DAMPING.toFixed(3);
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    theta = THETA0;
+    omega = 0;
+    clock = 0;
+    trail.length = 0;
+  });
 
   requestAnimationFrame(loop);
 })();
