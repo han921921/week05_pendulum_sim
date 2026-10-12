@@ -12,12 +12,13 @@
 ## 目录规划
 ```
 week05_pendulum_sim/
-├── README.md        # 本说明文件
-└── index.html       # 摆模拟器（单摆 → 双摆混沌，含交互控制面板）
+├── README.md                  # 本说明文件
+├── index.html                 # 摆模拟器（单摆 → 双摆混沌，含交互控制面板）
+└── challenge_screenshot.png   # 进阶挑战运行截图
 ```
 
 ## GitHub 作品集链接
-- 待补充（远端仓库创建并 push 后更新）
+- https://github.com/han921921/week05_pendulum_sim
 
 ## 实验验收与人机协同三反思
 
