@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单摆模拟器 — Week 05 Pendulum Lab</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #1a1a24;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Consolas", "Courier New", monospace;
+  }
+  #stage {
+    display: block;
+    margin: 0 auto;
+  }
+  #hud {
+    position: fixed;
+    top: 14px;
+    left: 16px;
+    color: #8fd3ff;
+    font-size: 13px;
+    line-height: 1.7;
+    text-shadow: 0 0 6px rgba(143, 211, 255, .45);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="hud"></div>
+<canvas id="stage"></canvas>
+<script>
+(function () {
+  "use strict";
+
+  // ---------- 参数 ----------
+  var PIXELS_PER_METER = 100;      // 像素-物理量换算
+  var L_PX = 200;                  // 摆长（像素）
+  var G = 9.8;                     // 重力加速度 m/s^2
+  var THETA0 = 45 * Math.PI / 180; // 初始摆角（弧度）
+  var DAMPING = 0.0;               // 无阻尼，理想简谐/非线性摆动
+  var BOB_RADIUS = 16;
+
+  var L_M = L_PX / PIXELS_PER_METER;
+
+  // ---------- 状态 ----------
+  var theta = THETA0;
+  var omega = 0;                   // 角速度 rad/s
+  var anchor = { x: 0, y: 0 };
+  var trail = [];
+  var lastTime = null;
+  var clock = 0;
+
+  var canvas = document.getElementById("stage");
+  var ctx = canvas.getContext("2d");
+  var hud = document.getElementById("hud");
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    anchor.x = canvas.width / 2;
+    anchor.y = canvas.height * 0.22;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- 物理积分（RK4，非线性单摆方程 θ'' = -(g/L)sinθ） ----------
+  function accel(th) {
+    return -(G / L_M) * Math.sin(th) - DAMPING * omega;
+  }
+
+  function step(dt) {
+    var k1t = omega;
+    var k1w = accel(theta);
+    var k2t = omega + 0.5 * dt * k1w;
+    var k2w = accel(theta + 0.5 * dt * k1t);
+    var k3t = omega + 0.5 * dt * k2w;
+    var k3w = accel(theta + 0.5 * dt * k2t);
+    var k4t = omega + dt * k3w;
+    var k4w = accel(theta + dt * k3t);
+    theta += dt / 6 * (k1t + 2 * k2t + 2 * k3t + k4t);
+    omega += dt / 6 * (k1w + 2 * k2w + 2 * k3w + k4w);
+  }
+
+  // ---------- 绘制 ----------
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 背景（深灰科技色）
+    ctx.fillStyle = "#1a1a24";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 顶部横梁
+    ctx.strokeStyle = "rgba(143, 211, 255, .35)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(anchor.x - 70, anchor.y);
+    ctx.lineTo(anchor.x + 70, anchor.y);
+    ctx.stroke();
+
+    // 支点
+    ctx.fillStyle = "#cfd8e3";
+    ctx.beginPath();
+    ctx.arc(anchor.x, anchor.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    var bx = anchor.x + L_PX * Math.sin(theta);
+    var by = anchor.y + L_PX * Math.cos(theta);
+
+    // 摆球轨迹残影
+    trail.push({ x: bx, y: by });
+    if (trail.length > 90) trail.shift();
+    for (var i = 0; i < trail.length; i++) {
+      var a = i / trail.length;
+      ctx.fillStyle = "rgba(80, 170, 255, " + (a * 0.18) + ")";
+      ctx.beginPath();
+      ctx.arc(trail[i].x, trail[i].y, 3 * a + 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 摆线
+    ctx.strokeStyle = "rgba(207, 216, 227, .8)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(anchor.x, anchor.y);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+
+    // 摆球 + 微弱发光光效
+    ctx.save();
+    ctx.shadowColor = "rgba(120, 200, 255, .9)";
+    ctx.shadowBlur = 28;
+    var grad = ctx.createRadialGradient(
+      bx - BOB_RADIUS * 0.35, by - BOB_RADIUS * 0.35, 2,
+      bx, by, BOB_RADIUS
+    );
+    grad.addColorStop(0, "#bfe6ff");
+    grad.addColorStop(1, "#2f7fd6");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(bx, by, BOB_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // HUD 数据
+    var deg = (theta * 180 / Math.PI).toFixed(1);
+    var period = 2 * Math.PI * Math.sqrt(L_M / G); // 小周期近似
+    hud.textContent =
+      "单摆模拟器 Week 05\n" +
+      "L = 200 px (2.0 m)   g = 9.8 m/s²\n" +
+      "θ = " + deg + "°   ω = " + omega.toFixed(2) + " rad/s\n" +
+      "T₀ ≈ " + period.toFixed(2) + " s   t = " + clock.toFixed(1) + " s";
+  }
+
+  // ---------- 主循环 ----------
+  function loop(now) {
+    if (lastTime === null) lastTime = now;
+    var dt = Math.min((now - lastTime) / 1000, 0.05); // 防跳帧
+    lastTime = now;
+    clock += dt;
+
+    // 细分步长，保证数值稳定
+    var sub = Math.max(1, Math.ceil(dt / 0.005));
+    for (var i = 0; i < sub; i++) step(dt / sub);
+
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
